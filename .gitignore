@@ -1,13 +1,12 @@
 # Terraform
 .terraform/
 *.tfstate
-*.tfstate.backup
-
-# Terraform lock file (optional but common to ignore in training projects)
+*.tfstate.*
 .terraform.lock.hcl
 
-# OS files
-.DS_Store
+# Archives / installers
+*.zip
+*.tar.gz
 
 # Logs
 *.log
