@@ -1,5 +1,5 @@
 provider "aws" {
-  region = "us-east-1"
+  region = "us-east-2"
 }
 
 module "vpc" {
@@ -11,6 +11,6 @@ module "vpc" {
   public_subnet_1 = "10.0.1.0/24"
   public_subnet_2 = "10.0.2.0/24"
 
-  az1 = "us-east-1a"
-  az2 = "us-east-1b"
+  az1 = "us-east-2a"
+  az2 = "us-east-2b"
 }
