@@ -7,12 +7,6 @@ pipeline {
 
     stages {
 
-        stage('Clone Repository') {
-            steps {
-                git 'https://github.com/kofisefa/insurance-cloud-platform.git'
-            }
-        }
-
         stage('Terraform Init') {
             steps {
                 sh '''
