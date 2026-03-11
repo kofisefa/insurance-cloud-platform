@@ -9,7 +9,7 @@ pipeline {
 
         stage('Clone Repository') {
             steps {
-                git 'https://github.com/<your-username>/insurance-cloud-platform.git'
+                git 'https://github.com/kofisefa/insurance-cloud-platform.git'
             }
         }
 
