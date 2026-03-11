@@ -20,4 +20,6 @@ module "eks" {
   vpc_id        = module.vpc.vpc_id
   subnet_ids    = module.vpc.public_subnet_ids
   cluster_version = "1.29"   # override default
+  node_instance_type = "t3.medium"
+  # other variables...
 }

@@ -14,158 +14,153 @@ Documenting these challenges demonstrates practical platform engineering and ope
 
 ---
 
-### 1. EKS Node Group Creation Failure
+## Overview
 
-**Issue**
+This project demonstrates a full-stack cloud deployment of an Insurance API platform on AWS EKS, using Terraform for infrastructure provisioning and Kubernetes for container orchestration. It showcases cloud architecture, CI/CD pipelines, monitoring, autoscaling, and troubleshooting experience.
 
-While creating the EKS node group using Terraform, the node group entered a `CREATE_FAILED` state.
+## Architecture Overview
 
-Error message:
+The platform is deployed in a secure VPC with public subnets and exposed via an Nginx ingress controller. Worker nodes run on EC2 instances (t3.medium for this portfolio deployment). The cluster uses Prometheus and Metrics Server for observability, while Horizontal Pod Autoscalers ensure automated scaling based on CPU usage.
 
-```
-AsgInstanceLaunchFailures: Could not launch On-Demand Instances.
-InvalidParameterCombination - The specified instance type is not eligible for Free Tier.
-```
+## Key Components:
 
-**Root Cause**
+AWS VPC – Private and public subnets hosting EKS and workloads
 
-The instance type configured for the node group was incompatible with AWS Free Tier restrictions.
+EKS Cluster – Managed Kubernetes cluster
 
-**Resolution**
+Worker Nodes – EC2 instances running pods
 
-Updated the Terraform variable for node instance type to a supported instance class.
+Ingress Controller – Nginx routing external traffic to services
 
-Example Terraform variable:
+Application Pods – Insurance API deployed via Kubernetes
 
-```hcl
-variable "node_instance_type" {
-  default = "t3.large"
-}
-```
+Prometheus / Metrics Server – Cluster and application metrics
 
-This allowed the node group to launch successfully and register worker nodes with the cluster.
+Horizontal Pod Autoscaler (HPA) – Scales pods based on CPU utilization
 
----
+## Architecture Diagram:
+                     ┌───────────────────┐
+                     │   Internet User    │
+                     └────────┬──────────┘
+                              │
+                              ▼
+                     ┌───────────────────┐
+                     │   Nginx Ingress    │
+                     └────────┬──────────┘
+                              │
+                ┌─────────────┴─────────────┐
+                │                           │
+        ┌─────────────┐             ┌─────────────┐
+        │ insurance-  │             │ insurance-  │
+        │ api Pod 1   │             │ api Pod 2   │
+        └─────────────┘             └─────────────┘
+                │                           │
+                └─────────────┬─────────────┘
+                              ▼
+                     ┌───────────────────┐
+                     │ AWS EKS Cluster    │
+                     │ Worker Nodes       │
+                     └────────┬──────────┘
+                              │
+                     ┌────────┴──────────┐
+                     │ AWS VPC / Subnets  │
+                     └───────────────────┘
 
-### 2. Kubernetes CRD Installation Failures (Prometheus Stack)
+## CI/CD Pipeline Overview
 
-**Issue**
+The CI/CD pipeline is implemented using Jenkins, automating infrastructure provisioning, application deployment, and monitoring setup.
 
-While installing the Prometheus monitoring stack using Helm, the installation repeatedly failed with errors such as:
+## Pipeline Stages:
 
-```
-http2: client connection lost
-TLS handshake timeout
-server was unable to return a response in the time allotted
-```
+# Source Control (GitHub)
 
-**Root Cause**
+Push Terraform code and Kubernetes manifests to main or dev branches.
 
-The cluster was running on minimal compute capacity. Large CRD resources caused the Kubernetes API server to timeout while processing the requests.
+# Jenkins CI
 
-**Resolution**
+Triggered on push, performs:
 
-Increased node capacity by upgrading the node group instance type.
-Once sufficient resources were available, the CRDs were able to install without API timeout errors.
+Terraform plan and apply to provision AWS infrastructure
 
----
+Linting and validation of Kubernetes manifests
 
-### 3. Horizontal Pod Autoscaler Showing `<unknown>` CPU Metrics
+Helm deploy / kubectl apply of application resources
 
-**Issue**
+# Deployment to AWS EKS
 
-After deploying a Horizontal Pod Autoscaler (HPA), the metrics column displayed:
+Terraform provisions: VPC, subnets, security groups, IAM roles, EKS cluster, and node groups
 
-```
-cpu: <unknown>/50%
-```
+Kubernetes manifests deploy: deployments, services, ingress, HPA, and monitoring stack
 
-**Root Cause**
+# Autoscaling & Monitoring
 
-The deployment did not define CPU resource requests.
-HPA calculates utilization as:
+HPA adjusts pods based on CPU usage
 
-```
-CPU Utilization = Current Usage / Requested CPU
-```
+Prometheus collects metrics and triggers alerts
 
-Without CPU requests defined, Kubernetes cannot calculate utilization.
+Ensures high availability and reliability
 
-**Resolution**
+## Pipeline Diagram:
+                 GitHub Repo
+     │
+     ▼
+  Jenkins CI
+     │
+ ┌───┴─────────────────┐
+ │ Terraform Apply      │
+ │ Provision AWS infra  │
+ └───┬─────────────────┘
+     │
+     ▼
+ Kubernetes Deployment
+     │
+ ┌───┴───────────┐
+ │ Deploy Pods    │
+ │ Services      │
+ │ Ingress       │
+ └───┬───────────┘
+     │
+     ▼
+ Autoscaling & Monitoring
+(HPA + Prometheus) 
 
-Added resource requests and limits to the container specification.
+## Operational Challenges & Solutions
 
-```yaml
-resources:
-  requests:
-    cpu: "100m"
-    memory: "128Mi"
-  limits:
-    cpu: "500m"
-    memory: "256Mi"
-```
+This section highlights real-world troubleshooting and decisions made during development:
 
-After applying the updated deployment, the HPA began reporting metrics correctly.
+1. Free-tier EC2 Limitations
 
----
+Issue: Using t3.micro instances caused EKS node groups to fail.
 
-### 4. Metrics Server Communication Issues
+Solution: Switched to t3.medium for portfolio deployment to allow enough resources for pods and monitoring stack.
 
-**Issue**
+2. EKS NodeGroup Creation Failures
 
-The metrics server initially failed to collect metrics from Kubernetes nodes, preventing HPA from functioning.
+Issue: Nodes failed to join the cluster due to insufficient IAM permissions or instance type restrictions.
 
-**Root Cause**
+Solution: Updated IAM roles with proper policies, selected supported instance types, and verified VPC/subnet configuration.
 
-EKS kubelets use certificates that the metrics-server cannot validate by default.
+3. Cluster Autoscaling & Pending Pods
 
-**Resolution**
+Issue: Pods stuck in Pending due to insufficient resources.
 
-Updated the metrics-server deployment arguments to allow secure communication with kubelets:
+Solution: Increased node instance size, verified resource requests/limits, and applied Horizontal Pod Autoscaler.
 
-```
---kubelet-insecure-tls
---kubelet-preferred-address-types=InternalIP
-```
+4. Prometheus Helm Install Failures
 
-Once updated, node and pod metrics became available using:
+Issue: CRD installation timed out due to EKS API latency.
 
-```
-kubectl top nodes
-kubectl top pods
-```
+Solution: Applied CRDs manually first, then installed Helm charts with --server-side apply and increased timeouts.
 
----
+5. Terraform State & Orphaned Resources
 
-### 5. Kubernetes YAML Schema Errors
+Issue: Node group deletions remained in DELETE_PENDING state.
 
-**Issue**
+Solution: Verified AWS console, removed orphaned IAM roles, and refreshed Terraform state with terraform state rm.
 
-Deployment updates failed with:
+# Infrastructure Scaling Challenge
 
-```
-strict decoding error: unknown field "resources"
-```
-
-**Root Cause**
-
-The `resources` block was incorrectly placed outside the container specification.
-
-**Resolution**
-
-Moved the `resources` configuration inside the container definition:
-
-```yaml
-containers:
-- name: insurance-api
-  image: nginx
-  resources:
-    requests:
-      cpu: "100m"
-      memory: "128Mi"
-```
-
----
+While deploying the Prometheus monitoring stack, the cluster experienced API timeouts and pod scheduling failures due to insufficient node resources (t3.micro). Upgrading the node group to t3.medium resolved the issue and allowed the observability stack to deploy successfully.
 
 ## Key Lessons Learned
 
@@ -189,5 +184,105 @@ While deploying the Prometheus monitoring stack, the cluster experienced API tim
 Running observability stacks on very small Kubernetes nodes (t3.small) can lead to
 API server timeouts and CRD installation failures due to resource pressure.
 Increasing node size (t3.medium) resolved the issue.
+
+## Getting Started
+
+Follow these steps to deploy the Insurance Cloud Platform on AWS EKS. This section is tailored for quick portfolio demonstration.
+
+1. Clone the repository
+git clone https://github.com/<your-username>/insurance-cloud-platform.git
+cd insurance-cloud-platform
+2. Configure AWS CLI
+
+Ensure your AWS CLI is set to the correct region and has sufficient permissions:
+
+aws configure
+# Set AWS Access Key, Secret Key, and default region (e.g., us-east-2)
+3. Provision Infrastructure with Terraform
+
+Navigate to the Terraform environment:
+
+cd terraform/environments/dev
+
+Initialize Terraform:
+
+terraform init
+
+Review the plan:
+
+terraform plan
+
+Apply the configuration to create your VPC, subnets, EKS cluster, and node groups:
+
+terraform apply
+# Confirm with "yes"
+
+⚠️ Use t3.large or higher instance types for demo purposes to avoid Free Tier limitations.
+
+4. Configure kubectl
+
+Update kubeconfig to access your EKS cluster:
+
+aws eks update-kubeconfig \
+    --name insurance-dev-eks \
+    --region us-east-2
+
+Check nodes and cluster status:
+
+kubectl get nodes
+kubectl get pods -A
+5. Deploy the Application
+
+Navigate to the Kubernetes manifests folder:
+
+cd ../../../kubernetes/insurance-app
+
+Apply Deployment, Service, HPA, and Ingress manifests:
+
+kubectl apply -f insurance-deployment.yaml
+kubectl apply -f insurance-service.yaml
+kubectl apply -f insurance-hpa.yaml
+kubectl apply -f insurance-ingress.yaml
+
+Check pod and ingress status:
+
+kubectl get pods -n insurance-app
+kubectl get ingress -n insurance-app
+kubectl get hpa -n insurance-app
+6. Deploy Monitoring (Optional)
+
+Install Prometheus & Metrics Server for observability:
+
+kubectl create namespace monitoring
+
+# Apply CRDs manually first to avoid timeout issues
+kubectl apply --server-side -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/bundle.yaml
+
+# Then deploy via Helm
+helm install monitoring prometheus-community/kube-prometheus-stack \
+    --namespace monitoring
+
+Verify pods and services:
+
+kubectl get pods -n monitoring
+kubectl get svc -n monitoring
+7. Cleanup
+
+To destroy the infrastructure when finished:
+
+cd terraform/environments/dev
+terraform destroy
+
+This ensures you don’t incur AWS charges for t3.large instances after your portfolio demo
+
+docs: Add comprehensive Getting Started guide and project setup instructions
+- Documented step-by-step instructions for setting up the Insurance Cloud Platform project from zero.
+- Included environment setup using WSL on Windows, VS Code, Terraform, AWS CLI, kubectl, and Helm.
+- Detailed Terraform workflow for provisioning VPC, subnets, EKS cluster, and node groups.
+- Added instructions for deploying the sample insurance application, including Deployment, Service, HPA, and Ingress manifests.
+- Included optional monitoring setup with Prometheus and kube-prometheus-stack via Helm.
+- Added cleanup instructions to destroy AWS resources after the demo.
+- Emphasizes Free Tier limitations and recommended t3.large instances for portfolio demonstrations.
+- Ensures reproducibility for interview discussions and GitHub portfolio showcase.
 
 Author: Kofi Sefa

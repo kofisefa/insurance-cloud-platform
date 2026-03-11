@@ -56,6 +56,10 @@ resource "aws_iam_role" "node" {
   })
 }
 
+data "aws_ssm_parameter" "eks_ami" {
+  name = "/aws/service/eks/optimized-ami/${aws_eks_cluster.this.version}/amazon-linux-2023/x86_64/standard/recommended/image_id"
+}
+
 resource "aws_iam_role_policy_attachment" "worker_node_policy" {
   role       = aws_iam_role.node.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
@@ -71,6 +75,7 @@ resource "aws_iam_role_policy_attachment" "registry_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
+  
 # -----------------------------
 # NODE GROUP
 # -----------------------------
@@ -80,13 +85,14 @@ resource "aws_eks_node_group" "this" {
   node_role_arn   = aws_iam_role.node.arn
   subnet_ids      = var.subnet_ids
 
-  instance_types = ["t3.micro"]
 
   scaling_config {
-    desired_size = 2
-    max_size     = 2
-    min_size     = 1
+    desired_size = 3
+    max_size     = 3
+    min_size     = 2
   }
+
+  instance_types = [var.node_instance_type]
 
   depends_on = [
     aws_iam_role_policy_attachment.worker_node_policy,
