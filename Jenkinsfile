@@ -58,7 +58,13 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 sh """
+                    # Update kubeconfig
                     aws eks update-kubeconfig --region ${AWS_REGION} --name insurance-dev-eks
+
+                    # Create namespace if it doesn't exist
+                    kubectl get namespace insurance-app || kubectl create namespace insurance-app
+
+                    # Apply all manifests
                     kubectl apply -f kubernetes/insurance-app/insurance-deployment.yaml
                     kubectl apply -f kubernetes/insurance-app/insurance-service.yaml
                     kubectl apply -f kubernetes/insurance-app/insurance-ingress.yaml
