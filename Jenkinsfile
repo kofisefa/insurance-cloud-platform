@@ -3,19 +3,16 @@ pipeline {
 
     environment {
         AWS_REGION = 'us-east-2'
-        AWS_ACCOUNT_ID = '920310277638'        // <-- Replace with your AWS Account ID
-        ECR_REPO = 'insurance-api'
-        IMAGE_TAG = "v${BUILD_NUMBER}"
+        AWS_ACCOUNT_ID = '920310277638'   // <-- Replace with your AWS account ID
+        IMAGE_TAG = "v1-${env.BUILD_NUMBER}"
+        ECR_REPO = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/insurance-api"
+        KUBECONFIG = '/var/jenkins_home/.kube/config'
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git(
-                    url: 'https://github.com/kofisefa/insurance-cloud-platform.git',
-                    branch: 'main',
-                    credentialsId: 'github_pat'
-                )
+                git url: 'https://github.com/kofisefa/insurance-cloud-platform.git', branch: 'main', credentialsId: 'github_pat'
             }
         }
 
@@ -31,16 +28,13 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 dir('kubernetes/insurance-app') {
-                    sh "docker build -t ${ECR_REPO}:${IMAGE_TAG} ."
-                }
-            }
-        }
-
-        stage('Prepare Deployment') {
-            steps {
-                dir('kubernetes/insurance-app') {
                     sh """
-                    sed -i "s|image: nginx|image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}|g" insurance-deployment.yaml
+                    # Login to AWS ECR
+                    aws ecr get-login-password --region ${AWS_REGION} | \
+                        docker login --username AWS --password-stdin ${ECR_REPO}
+
+                    # Build Docker image
+                    docker build -t ${ECR_REPO}:${IMAGE_TAG} .
                     """
                 }
             }
@@ -48,27 +42,25 @@ pipeline {
 
         stage('Push to ECR') {
             steps {
-                sh """
-                aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
-                docker tag ${ECR_REPO}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
-                docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
-                """
+                sh "docker push ${ECR_REPO}:${IMAGE_TAG}"
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
-                sh """
-                aws eks update-kubeconfig --region ${AWS_REGION} --name insurance-dev-eks
-                kubectl apply -f kubernetes/insurance-app/
-                """
+                dir('kubernetes/insurance-app') {
+                    // Update the deployment YAML with the new image tag
+                    sh "sed -i 's|image: .*|image: ${ECR_REPO}:${IMAGE_TAG}|' insurance-deployment.yaml"
+
+                    // Apply the deployment to EKS
+                    sh "kubectl apply -f insurance-deployment.yaml"
+                }
             }
         }
 
         stage('Verify Deployment') {
             steps {
-                sh 'kubectl rollout status deployment/insurance-api'
-                sh 'kubectl get pods -o wide'
+                sh "kubectl rollout status deployment/insurance-api"
             }
         }
     }
@@ -78,7 +70,7 @@ pipeline {
             sh 'docker system prune -f'
         }
         success {
-            echo 'Deployment succeeded!'
+            echo 'Pipeline completed successfully!'
         }
         failure {
             echo 'Deployment failed. Check logs.'
