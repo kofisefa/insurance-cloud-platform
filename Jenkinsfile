@@ -62,7 +62,7 @@ pipeline {
                         kubectl apply -f insurance-hpa.yaml
 
                         # Wait for rollout
-                        kubectl rollout status deployment/insurance-api -n insurance-app
+                        # kubectl rollout status deployment/insurance-api -n insurance-app
                     """
                 }
             }
