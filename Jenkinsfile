@@ -68,6 +68,9 @@ pipeline {
                     kubectl apply -f kubernetes/insurance-app/insurance-deployment.yaml
                     kubectl apply -f kubernetes/insurance-app/insurance-service.yaml
                     kubectl apply -f kubernetes/insurance-app/insurance-ingress.yaml
+
+                    # Wait for rollout to complete
+                    kubectl rollout status deployment/insurance-api -n insurance-app
                 """
             }
         }
