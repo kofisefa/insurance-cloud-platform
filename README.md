@@ -24,19 +24,20 @@ The platform is deployed in a secure VPC with public subnets and exposed via an 
 
 ## Key Components:
 
-AWS VPC – Private and public subnets hosting EKS and workloads
+## Architecture Overview
 
-EKS Cluster – Managed Kubernetes cluster
+The Insurance Cloud Platform is deployed on **AWS EKS**, with Terraform managing the infrastructure. Kubernetes workloads run in a VPC with public subnets, and a LoadBalancer exposes services. The platform also includes monitoring and autoscaling.
 
-Worker Nodes – EC2 instances running pods
+**Key Components:**
 
-Ingress Controller – Nginx routing external traffic to services
+- **AWS VPC** – Contains private and public subnets for EKS worker nodes and services.
+- **EKS Cluster** – Managed Kubernetes cluster orchestrating containers.
+- **Worker Nodes** – EC2 instances (t3.large for portfolio deployment) hosting pods.
+- **Ingress Controller** – Nginx-based controller routing traffic to services.
+- **Application Pods** – Insurance API deployed via Kubernetes deployments.
+- **Prometheus / Metrics Server** – Monitoring cluster and application metrics.
+- **Horizontal Pod Autoscaler (HPA)** – Scales pods based on CPU utilization.
 
-Application Pods – Insurance API deployed via Kubernetes
-
-Prometheus / Metrics Server – Cluster and application metrics
-
-Horizontal Pod Autoscaler (HPA) – Scales pods based on CPU utilization
 
 ## Architecture Diagram:
                      ┌───────────────────┐
@@ -72,33 +73,38 @@ The CI/CD pipeline is implemented using Jenkins, automating infrastructure provi
 
 ## Pipeline Stages:
 
-# Source Control (GitHub)
+## CI/CD Pipeline Overview
 
-Push Terraform code and Kubernetes manifests to main or dev branches.
+The project uses **Jenkins** as the primary CI/CD tool to automate infrastructure provisioning and application deployment. GitHub is used as the source repository for both Terraform and Kubernetes manifests.
 
-# Jenkins CI
+**Pipeline Stages:**
 
-Triggered on push, performs:
+1. **Source Control (GitHub)**
+   - Developers push changes to branches in the repository:
+     - Terraform code for infrastructure
+     - Kubernetes manifests for application deployments
 
-Terraform plan and apply to provision AWS infrastructure
+2. **Jenkins CI**
+   - Triggered automatically on push to main or dev branches.
+   - Steps include:
+     - Terraform `plan` and `apply` to provision or update AWS resources.
+     - Linting and validation of Kubernetes YAML files.
+     - Helm deploy / `kubectl apply` of manifests to EKS cluster.
 
-Linting and validation of Kubernetes manifests
+3. **Deployment to AWS EKS**
+   - Terraform ensures:
+     - VPC, subnets, security groups, and IAM roles exist
+     - EKS cluster and node groups are provisioned
+   - Kubernetes manifests create:
+     - Deployments and services
+     - Ingress rules
+     - Horizontal Pod Autoscalers
+   - Monitoring stack (Prometheus, Metrics Server) is installed for observability
 
-Helm deploy / kubectl apply of application resources
-
-# Deployment to AWS EKS
-
-Terraform provisions: VPC, subnets, security groups, IAM roles, EKS cluster, and node groups
-
-Kubernetes manifests deploy: deployments, services, ingress, HPA, and monitoring stack
-
-# Autoscaling & Monitoring
-
-HPA adjusts pods based on CPU usage
-
-Prometheus collects metrics and triggers alerts
-
-Ensures high availability and reliability
+4. **Autoscaling & Monitoring**
+   - HPA scales pods based on CPU usage.
+   - Prometheus metrics monitor cluster health and application performance.
+   - Alerts can be configured for operational incidents.
 
 ## Pipeline Diagram:
                  GitHub Repo

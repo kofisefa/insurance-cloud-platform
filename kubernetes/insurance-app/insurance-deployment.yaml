@@ -15,7 +15,8 @@ spec:
     spec:
       containers:
       - name: insurance-api
-        image: nginx
+        image: 920310277638.dkr.ecr.us-east-2.amazonaws.com/insurance-api:13-4dda80c
+        imagePullPolicy: Always
         ports:
         - containerPort: 80
         resources:
