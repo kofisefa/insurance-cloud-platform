@@ -291,4 +291,4 @@ docs: Add comprehensive Getting Started guide and project setup instructions
 - Emphasizes Free Tier limitations and recommended t3.large instances for portfolio demonstrations.
 - Ensures reproducibility for interview discussions and GitHub portfolio showcase.
 
-Author: Kofi Sefa
+Author: Rexford A
